@@ -3,7 +3,7 @@
 Plugin Name: cAuth
 Plugin URI: https://github.com/joshp23/YOURLS-cAuth
 Description: Enables X.509 client side SSL certificate authentication
-Version: 0.3.0
+Version: 0.3.1
 Author: Josh Panter
 Author URI: https://unfettered.net
 */
@@ -22,13 +22,10 @@ function cAuth_add_pages() {
 }
 // maybe insert some JS and CSS files to head
 yourls_add_action( 'html_head', 'cAuth_head' );
-function cAuth_head() {
-	if ( defined('YOURLS_JP23_HEAD_FILES') == false ) {
-		define( 'YOURLS_JP23_HEAD_FILES', true );
-		echo "\n<! --------------------------JP23_HEAD_FILES Start-------------------------- >\n";
+function cAuth_head($context) {
+	if ( $context[0] == 'plugin_page_cAuth' ) {
 		echo "<link rel=\"stylesheet\" href=\"".YOURLS_SITE."/css/infos.css?v=".YOURLS_VERSION."\" type=\"text/css\" media=\"screen\" />\n";
 		echo "<script src=\"".YOURLS_SITE."/js/infos.js?v=".YOURLS_VERSION."\" type=\"text/javascript\"></script>\n";
-		echo "<! --------------------------JP23_HEAD_FILES END---------------------------- >\n";
 	}
 }
 // admin page
