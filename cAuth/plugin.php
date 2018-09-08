@@ -3,7 +3,7 @@
 Plugin Name: cAuth
 Plugin URI: https://github.com/joshp23/YOURLS-cAuth
 Description: Enables X.509 client side SSL certificate authentication
-Version: 0.3.1
+Version: 0.4.0
 Author: Josh Panter
 Author URI: https://unfettered.net
 */
@@ -98,7 +98,17 @@ function cAuth_do_page() {
 	// Odds and ends
 	$nonce = yourls_create_nonce( 'cAuth' );
 	$drop_chk = ( yourls_get_option('cAuth_table_drop') == "drop" ? 'checked' : null );	// Drop db on deactivate?
-	global $cAuth_admin;
+
+	$authMgrPlus = yourls_is_active_plugin( 'authMgrPlus/plugin.php' );
+	if( $authMgrPlus ) {
+		$admin = authMgrPlus_have_capability( AuthMgrPlusCapability::ManagePlugins );
+	} else {
+		global $cAuth_admin;
+		if( isset($cAuth_admin) )
+			$admin = in_array($uname, $cAuth_admin);
+		else 
+			$admin = true;
+	}
 
 	echo '
 		<div id="wrap">
@@ -108,7 +118,7 @@ function cAuth_do_page() {
 					<ul id="headers" class="toggle_display stat_tab">
 						<li><a href="#stat_tab_cAuth"><h2>Certificate Registration</h2></a></li>';
 	// hide from non-admins if admin option is set
-	if(!isset($cAuth_admin) || (isset($cAuth_admin) && in_array($uname, $cAuth_admin)))
+	if( $admin )
 		echo '			<li><a href="#stat_tab_admin"><h2>Global</h2></a></li>
 						<li><a href="#stat_tab_config"><h2>Config</h2></a></li>';
 	// resume normal page draw
@@ -141,7 +151,7 @@ function cAuth_do_page() {
 					</form>
 				</div>';
 	// hide from non-admins if admin option is set
-	if(!isset($cAuth_admin) || (isset($cAuth_admin) && in_array($uname, $cAuth_admin))) {
+	if( $admin ) {
 		echo '
 			<div id="stat_tab_admin" class="tab">';
 		if(isset($cAuth_admin)) {
@@ -150,7 +160,12 @@ function cAuth_do_page() {
 			foreach( $cAuth_admin as $admin )
 				echo $admin.'</br>';
 			echo '<hr>';
-		}
+
+		} elseif( $authMgrPlus )
+			echo 'Please refer to Auth Manager Plus for a list of admins';
+
+		else
+			echo 'No admin accounts set';
 
 		if( isset( $_GET['action'] ) && $_GET['action'] == 'remove' )
 			cAuth_clear($_GET['uname']);
@@ -215,7 +230,7 @@ function cAuth_do_page() {
 
 	echo '		<div id="stat_tab_cAuthInfos" class="tab">';
 	// hide from non-admins if admin option is set
-	if(!isset($cAuth_admin) || (isset($cAuth_admin) && in_array($uname, $cAuth_admin)))
+	if( $admin )
 		echo '
 					<h3>cAuth admin restriction</h3>
 					<p>To restrict what users have access to cAuth admin functions like deleting individual user certificates and the entire certificate database table, add the following to <code>/path/to/YOURLS/user/config.php</code>. If this is enabled, only users listed in that array will see this mesage.</p>
