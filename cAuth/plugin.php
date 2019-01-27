@@ -3,7 +3,7 @@
 Plugin Name: cAuth
 Plugin URI: https://github.com/joshp23/YOURLS-cAuth
 Description: Enables X.509 client side SSL certificate authentication
-Version: 0.4.0
+Version: 0.4.1
 Author: Josh Panter
 Author URI: https://unfettered.net
 */
@@ -246,6 +246,7 @@ $cAuth_admin = array(\''.$uname.'\');
 					<p>In <a href ="https://www.mozilla.org/en-US/firefox/new/" target="_blank">Firefox</a>, this is trivial. Go to <code>Preferences</code>&#8594;<code>Privacy and Security</code> and scroll down to the Security section at the bottom of the page. Click on <code>View Certificates</code> and <code>Import</code> your p12 file. Finally, under "When a server requests your personal certificate", tick "Select one automatically".</p>
 					<h3>Server config</h3>
 					<p>It is advisable to host using SSL/TSL only. <a href="https://unfettered.net/node/1344" target="_blank">Click here</a> for a simple walkthrough for obtaining free trusted SSL certificate from <a href="https://letsencrypt.org/" target="_blank">Letsencrypt</a>.
+					<h4>Apache</h4>
 					<p>After obtaining your certificates and copying your CA to your server, make sure that mod ssl is enabled in Apache with <code>a2enmod ssl</code> and reload with <code>service apache2 reload</code> if needed. At minimum the following options must be in your Virtual Host file for YOURLS in Apache:</p>
 <pre>
 # GLOBAL SSL SETTINGS
@@ -257,6 +258,46 @@ SSLOptions +StdEnvVars
 # CLIENT SIDE CERTIFICATE LOCATION
 SSLCACertificateFile /path/to/your/CA/example-cacert.pem
 </pre>
+					<h4>Nginx</h4>
+<p>For adding a client certificate CA to an existing SSL enabled host these settings would have to be added to the server block:</p>
+<pre>
+ssl_client_certificate /path/to/your/certificate/authority/CA-cacert.pem;
+# ssl_crl /path/to/your/certificate/authority/CA-revocation.crl;
+ssl_verify_client optional;
+location ~ \.php$ {
+
+	# in addition to pre-existing settings...
+	fastcgi_param  SSL_CLIENT_VERIFY		$ssl_client_verify;
+	fastcgi_param  SSL_CLIENT_S_DN			$ssl_client_s_dn;
+	fastcgi_param  SSL_CLIENT_S_DN_CN		$ssl_client_s_dn_cn;
+	fastcgi_param  SSL_CLIENT_S_DN_Email 	$ssl_client_s_dn_email;
+	fastcgi_param  SSL_CLIENT_I_DN			$ssl_client_i_dn;
+	fastcgi_param  SSL_CLIENT_I_DN_CN		$ssl_client_i_dn_cn;
+	fastcgi_param  SSL_CLIENT_M_SERIAL		$ssl_client_serial;
+	fastcgi_param  SSL_CLIENT_V_START		0;
+	fastcgi_param  SSL_CLIENT_V_END			0;
+	fastcgi_param  SSL_CLIENT_V_REMAIN		999;
+	# fastcgi_param  SSL_CLIENT_V_START		$ssl_client_v_start;
+	# fastcgi_param  SSL_CLIENT_V_END		$ssl_client_v_end;
+}
+</pre>
+<p>Add these settings <i>outside</i> of your server block</p>
+<pre>
+map  $ssl_client_s_dn  $ssl_client_s_dn_cn {
+			 default           "";
+			~/CN=(?<CN>[^/]+) $CN;
+}
+map  $ssl_client_s_dn  $ssl_client_s_dn_email {
+			 default           "";
+			~/emailAddress=(?<emailAddress>[^/]+) $emailAddress;
+}
+map  $ssl_client_i_dn  $ssl_client_i_dn_cn {
+			 default           "";
+			~/CN=(?<CN>[^/]+) $CN;
+}
+</pre>
+<p><b>Note:</b> Use <code>$ssl_client_s_dn_legacy;</code> and <code>$ssl_client_i_dn_legacy;</code> for Nginx 1.11.6+
+<p>Remember to follow these up with <code>$nginx -t</code> to test, and <code>service nginx reload</code> if successfull.</p>
 					<hr>
 					<h3>Additional resources</h3>
 					<ul>
@@ -367,7 +408,7 @@ function cAuth_is_valid() {
         || $_SERVER['SSL_CLIENT_VERIFY'] !== 'SUCCESS'
         || !isset($_SERVER['SSL_CLIENT_I_DN'])
     	) 
-        return false;
+       return false;
 
     if ($_SERVER['SSL_CLIENT_V_REMAIN'] <= 0)
         return false;
