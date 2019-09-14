@@ -3,7 +3,7 @@
 Plugin Name: cAuth
 Plugin URI: https://github.com/joshp23/YOURLS-cAuth
 Description: Enables X.509 client side SSL certificate authentication
-Version: 0.4.1
+Version: 0.4.2
 Author: Josh Panter
 Author URI: https://unfettered.net
 */
@@ -101,7 +101,7 @@ function cAuth_do_page() {
 
 	$authMgrPlus = yourls_is_active_plugin( 'authMgrPlus/plugin.php' );
 	if( $authMgrPlus ) {
-		$admin = authMgrPlus_have_capability( AuthMgrPlusCapability::ManagePlugins );
+		$admin = amp_have_capability( ampCap::ManagePlugins );
 	} else {
 		global $cAuth_admin;
 		if( isset($cAuth_admin) )
