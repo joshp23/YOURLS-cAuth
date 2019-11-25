@@ -3,7 +3,7 @@
 Plugin Name: cAuth
 Plugin URI: https://github.com/joshp23/YOURLS-cAuth
 Description: Enables X.509 client side SSL certificate authentication
-Version: 0.4.2
+Version: 0.5.0
 Author: Josh Panter
 Author URI: https://unfettered.net
 */
@@ -357,13 +357,21 @@ function cAuth_update_op() {
  *
  *
 */
-yourls_add_filter( 'is_valid_user', 'is_cAuth_user' ); 	// interrupt normal auth process
+yourls_add_filter( 'shunt_is_valid_user', 'is_cAuth_user' ); 	// interrupt normal auth process
 function is_cAuth_user($valid) {
+	yourls_do_action( 'pre_login' );
 	// check for correct context
 	if ( !yourls_is_API()  && !$valid ) {
+
+		// Logout request
+		if( isset( $_GET['action'] ) && $_GET['action'] == 'logout' ) {
+			yourls_do_action( 'logout' );
+			yourls_redirect( yourls_sanitize_url_safe( YOURLS_SITE ));
+		}
+
 		// check for valid certificate
 		$cert = cAuth_is_valid();
-		if ($cert) {
+		if ( $cert ) {
 			// encode cert data
 			$certHash = cAuth_certID();
 			// check DB for a match
@@ -379,15 +387,19 @@ function is_cAuth_user($valid) {
 			}
 			// if there's a cert match...
 			if( $cAuth ) {
+				yourls_do_action( 'pre_login_cAuth' );
 				// check user list for a match with DB infos
 				global $yourls_user_passwords;
 				$uname = $cAuth['uname'];
 				foreach( $yourls_user_passwords as $user => $password) {
-					if( $uname == $user ) $valid = true;
+					if( $uname == $user ) $pre_valid = true;
 				}
-				if($valid)
+				$valid = yourls_apply_filter( 'is_valid_user', $pre_valid );
+				if($valid) {
 					// set auth
+					yourls_do_action( 'login' );
 					yourls_set_user($uname);
+				}
 			}
 		}
 	}
