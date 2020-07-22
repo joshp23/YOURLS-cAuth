@@ -3,10 +3,11 @@
 Plugin Name: cAuth
 Plugin URI: https://github.com/joshp23/YOURLS-cAuth
 Description: Enables X.509 client side SSL certificate authentication
-Version: 0.5.0
+Version: 0.6.0
 Author: Josh Panter
 Author URI: https://unfettered.net
 */
+define( 'CAUTH_DB_UPDATE', false );
 // No direct call
 if( !defined( 'YOURLS_ABSPATH' ) ) die();
 /*
@@ -36,14 +37,10 @@ function cAuth_do_page() {
 	$uname = YOURLS_USER;
 
 	global $ydb;
-	$table = 'cAuth';
-	if (version_compare(YOURLS_VERSION, '1.7.3') >= 0) {
-		$sql = "SELECT * FROM $table WHERE `uname` = :uname";
-		$binds = array('uname' => $uname);
-		$cAuth = $ydb->fetchOne($sql, $binds);
-	} else {
-		$cAuth = $ydb->get_row("SELECT * FROM `$table` WHERE `uname` = `$uname`");
-	}
+	$table = YOURLS_DB_PREFIX . 'cAuth';
+	$sql = "SELECT * FROM $table WHERE `uname` = :uname";
+	$binds = array('uname' => $uname);
+	$cAuth = $ydb->fetchOne($sql, $binds);
 
 	$state = null;
 
@@ -184,13 +181,9 @@ function cAuth_do_page() {
 							<tbody>';
 
 		// populate table rows with expiry data if there is any
-		$table = 'cAuth';
-		if (version_compare(YOURLS_VERSION, '1.7.3') >= 0) {
-			$sql = "SELECT * FROM `$table` ORDER BY uname DESC";
-			$cAuth_list = $ydb->fetchObjects($sql);
-		} else {
-			$cAuth_list = $ydb->get_results("SELECT * FROM `$table` ORDER BY uname DESC");
-		}
+		$table = YOURLS_DB_PREFIX . 'cAuth';
+		$sql = "SELECT * FROM `$table` ORDER BY uname DESC";
+		$cAuth_list = $ydb->fetchObjects($sql);
 		if($cAuth_list) {
 			foreach( $cAuth_list as $certAuth ) {
 				$base	= YOURLS_SITE;
@@ -324,15 +317,11 @@ function cAuth_registry($uname, $cs) {
 		switch($regCert) {
 			case 'register':
 				global $ydb;
-				$table = 'cAuth';
-				if (version_compare(YOURLS_VERSION, '1.7.3') >= 0) {
-					$binds = array(	'uname' => YOURLS_USER,
-									'certserial' => $cs );
-					$sql = "REPLACE INTO $table (uname, certserial) VALUES (:uname, :certserial)";
-					$insert = $ydb->fetchAffected($sql, $binds);
-				} else {
-					$insert = $ydb->query("REPLACE INTO `$table` (uname, certserial) VALUES ('$uname', '$certserial')");
-				}
+				$table = YOURLS_DB_PREFIX . 'cAuth';
+				$binds = array( 'uname' => YOURLS_USER,
+						'certserial' => $cs );
+				$sql = "REPLACE INTO $table (uname, certserial) VALUES (:uname, :certserial)";
+				$insert = $ydb->fetchAffected($sql, $binds);
 				break;
 			case 'clear':
 				cAuth_clear(YOURLS_USER);
@@ -376,15 +365,11 @@ function is_cAuth_user($valid) {
 			$certHash = cAuth_certID();
 			// check DB for a match
 			global $ydb;
-			$table = 'cAuth';
+			$table = YOURLS_DB_PREFIX . 'cAuth';
 			// regardless of YOURLS version (future-proof!)
-			if (version_compare(YOURLS_VERSION, '1.7.3') >= 0) {
-				$sql = "SELECT * FROM $table WHERE `certserial` = :certserial";
-				$binds = array('certserial' => $certHash);
-				$cAuth = $ydb->fetchOne($sql, $binds);
-			} else {
-				$cAuth = $ydb->get_row("SELECT * FROM `$table` WHERE `certserial` = `$certHash`");
-			}
+			$sql = "SELECT * FROM $table WHERE `certserial` = :certserial";
+			$binds = array('certserial' => $certHash);
+			$cAuth = $ydb->fetchOne($sql, $binds);
 			// if there's a cert match...
 			if( $cAuth ) {
 				yourls_do_action( 'pre_login_cAuth' );
@@ -443,6 +428,34 @@ function cAuth_certID() {
  *
  *
 */
+// temporary update DB script
+if( CAUTH_DB_UPDATE )
+	yourls_add_action( 'plugins_loaded', 'cAuth_update_DB' );
+function cAuth_update_DB () {
+	global $ydb;
+	$table =  'cAuth';
+	if ( YOURLS_DB_PREFIX ) {
+		try {
+			$sql = "DESCRIBE `".YOURLS_DB_PREFIX . $table."`";
+			$fix = $ydb->fetchAffected($sql);
+		} catch (PDOException $e) {
+			$sql = "RENAME TABLE `".$table."` TO  `".YOURLS_DB_PREFIX.$table."`";
+			$fix = $ydb->fetchAffected($sql);
+		}
+		
+		$table = YOURLS_DB_PREFIX . $table;
+	}
+	
+	try {
+	    	$sql = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+	    		WHERE TABLE_NAME = `".$table."`
+	    		AND ENGINE = 'INNODB' LIMIT 1";
+	    	$fix = $ydb->fetchAffected($sql);
+    	} catch (PDOException $e) {
+		$sql = "ALTER TABLE `".$table."` ENGINE = INNODB;";
+		$fix = $ydb->fetchAffected($sql);
+	}
+}
 // Create tables for this plugin when activated
 yourls_add_action( 'activated_cAuth/plugin.php', 'cAuth_activated' );
 function cAuth_activated() {
@@ -452,17 +465,14 @@ function cAuth_activated() {
 		// Create the init value
 		yourls_add_option('cAuth_init', time());
 		// Create the cAuth table
-		$table_cAuth  = "CREATE TABLE IF NOT EXISTS cAuth (";
+		$table = YOURLS_DB_PREFIX . 'cAuth';
+		$table_cAuth  = "CREATE TABLE IF NOT EXISTS ".$table." (";
 		$table_cAuth .= "uname varchar(200) NOT NULL, ";
 		$table_cAuth .= "certserial char(40) NOT NULL, ";
 		$table_cAuth .= "PRIMARY KEY (uname) ";
-		$table_cAuth .= ") ENGINE=MyISAM DEFAULT CHARSET=latin1;";
+		$table_cAuth .= ") ENGINE=INNODB DEFAULT CHARSET=latin1;";
 
-		if (version_compare(YOURLS_VERSION, '1.7.3') >= 0) {
-			$tables = $ydb->fetchAffected($table_cAuth);
-		} else {
-			$tables = $ydb->query($table_cAuth);
-		}
+		$tables = $ydb->fetchAffected($table_cAuth);
 
 		yourls_update_option('cAuth_init', time());
 		$init = yourls_get_option('cAuth_init');
@@ -480,26 +490,18 @@ function cAuth_deactivate() {
 		$init = yourls_get_option('cAuth_init');
 		if ($init !== false) {
 			yourls_delete_option('cAuth_init');
-			$table = "cAuth";
-			if (version_compare(YOURLS_VERSION, '1.7.3') >= 0) {
-				$sql = "DROP TABLE IF EXISTS $table";
-				$ydb->fetchAffected($sql);
-			} else {
-				$ydb->query("DROP TABLE IF EXISTS $table");
-			}
+			$table = YOURLS_DB_PREFIX . 'cAuth';
+			$sql = "DROP TABLE IF EXISTS $table";
+			$ydb->fetchAffected($sql);
 		}
 	}
 }
 // delete cAuth data
 function cAuth_clear($uname) {
 	global $ydb;
-	$table = "cAuth";
-	if (version_compare(YOURLS_VERSION, '1.7.3') >= 0) {
-		$binds = array(	'uname' => $uname);
-		$sql = "DELETE FROM $table WHERE `uname` = :uname";
-		$ydb->fetchAffected($sql, $binds);
-	} else {
-		$ydb->query("DELETE FROM `$table` WHERE `uname` = '$uname';");
-	}
+	$table = YOURLS_DB_PREFIX . 'cAuth';
+	$binds = array(	'uname' => $uname);
+	$sql = "DELETE FROM $table WHERE `uname` = :uname";
+	$ydb->fetchAffected($sql, $binds);
 }
 ?>
