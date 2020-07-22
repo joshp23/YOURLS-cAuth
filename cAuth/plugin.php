@@ -3,11 +3,10 @@
 Plugin Name: cAuth
 Plugin URI: https://github.com/joshp23/YOURLS-cAuth
 Description: Enables X.509 client side SSL certificate authentication
-Version: 0.6.0
+Version: 0.6.1
 Author: Josh Panter
 Author URI: https://unfettered.net
 */
-define( 'CAUTH_DB_UPDATE', false );
 // No direct call
 if( !defined( 'YOURLS_ABSPATH' ) ) die();
 /*
@@ -429,6 +428,8 @@ function cAuth_certID() {
  *
 */
 // temporary update DB script
+if (!defined( 'CAUTH_DB_UPDATE' ))
+	define( 'CAUTH_DB_UPDATE', false );
 if( CAUTH_DB_UPDATE )
 	yourls_add_action( 'plugins_loaded', 'cAuth_update_DB' );
 function cAuth_update_DB () {
